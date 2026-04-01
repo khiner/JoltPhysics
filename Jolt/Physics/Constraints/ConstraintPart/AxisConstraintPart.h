@@ -122,8 +122,6 @@ class AxisConstraintPart
 			}
 			else
 			{
-				// Note: mR2xAxis is still needed for the angular velocity projection
-				// in SolveVelocityConstraint (kinematic bodies can have angular velocity).
 				JPH_IF_DEBUG(Vec3::sNaN().StoreFloat3(&mInvI2_R2xAxis);)
 			}
 		}
