@@ -424,8 +424,17 @@ void SixDOFConstraint::SetupVelocityConstraint(float inDeltaTime)
 				break;
 
 			case EMotorState::Velocity:
-				mMotorTranslationConstraintPart[i].CalculateConstraintProperties(*mBody1, r1_plus_u, *mBody2, r2, translation_axis, -mTargetVelocity[i]);
-				break;
+				{
+					// Acceleration-mode velocity motor: mSpringSettings has damping > 0 but no stiffness.
+					// Produces a soft, mass-normalized velocity drive (a = -damping * v_err).
+					// Falls back to a hard velocity constraint (bounded by the motor force limit) otherwise.
+					const SpringSettings &spring_settings = mMotorSettings[i].mSpringSettings;
+					if (!spring_settings.HasStiffness() && spring_settings.mDamping > 0.0f)
+						mMotorTranslationConstraintPart[i].CalculateConstraintPropertiesWithDamping(inDeltaTime, *mBody1, r1_plus_u, *mBody2, r2, translation_axis, -mTargetVelocity[i], spring_settings.mDamping);
+					else
+						mMotorTranslationConstraintPart[i].CalculateConstraintProperties(*mBody1, r1_plus_u, *mBody2, r2, translation_axis, -mTargetVelocity[i]);
+					break;
+				}
 
 			case EMotorState::Position:
 				{
@@ -555,8 +564,15 @@ void SixDOFConstraint::SetupVelocityConstraint(float inDeltaTime)
 					break;
 
 				case EMotorState::Velocity:
-					mMotorRotationConstraintPart[i].CalculateConstraintProperties(*mBody1, *mBody2, rotation_axis, -mTargetAngularVelocity[i]);
-					break;
+					{
+						// See matching comment on the translation motor case above.
+						const SpringSettings &spring_settings = mMotorSettings[axis].mSpringSettings;
+						if (!spring_settings.HasStiffness() && spring_settings.mDamping > 0.0f)
+							mMotorRotationConstraintPart[i].CalculateConstraintPropertiesWithDamping(inDeltaTime, *mBody1, *mBody2, rotation_axis, -mTargetAngularVelocity[i], spring_settings.mDamping);
+						else
+							mMotorRotationConstraintPart[i].CalculateConstraintProperties(*mBody1, *mBody2, rotation_axis, -mTargetAngularVelocity[i]);
+						break;
+					}
 
 				case EMotorState::Position:
 					{

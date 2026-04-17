@@ -20,6 +20,7 @@ For breaking API changes see [this document](https://github.com/jrouwe/JoltPhysi
 * Added support for RISC-V RVV, the SIMD extension for RISC-V.
 * Added JPH_BUILD_SHARED_LIBS cmake variable to determine whether to build static or shared libraries (it defaults to BUILD_SHARED_LIBS). This allows embedding Jolt as a static library within a shared library.
 * Simulation stats: Added tracking of collision steps. This way we can know by how many steps we need to divide the numbers to get averages per step.
+* Added a mass-normalized damping-only drive to `SixDOFConstraint` velocity motors. If `MotorSettings::mSpringSettings` has damping > 0 and no stiffness/frequency, the motor now produces `a = -damping * v_err` (soft, mass-independent velocity drive) instead of the hard velocity constraint. Motors with damping == 0 behave as before. New helpers `SpringPart::CalculateSpringPropertiesWithDamping`, `AngleConstraintPart::CalculateConstraintPropertiesWithDamping` and `AxisConstraintPart::CalculateConstraintPropertiesWithDamping` expose the underlying math.
 * Various performance and memory optimizations.
 
 ### Bug Fixes

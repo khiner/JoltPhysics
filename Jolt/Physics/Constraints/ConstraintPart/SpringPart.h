@@ -127,6 +127,29 @@ public:
 		}
 	}
 
+	/// Calculate spring properties for a mass-normalized damping-only drive: a = -inDamping * v_err
+	/// Produces constraint force F = -m_eff * inDamping * v_err where m_eff = 1 / inInvEffectiveMass.
+	///
+	/// @param inDeltaTime Time step
+	/// @param inInvEffectiveMass Inverse effective mass K
+	/// @param inBias Bias term (b) for the constraint impulse: lambda = J v + b
+	/// @param inDamping Damping coefficient in 1/s. If <= 0, falls back to a bias-only setup.
+	/// @param outEffectiveMass On return, this contains the new effective mass K^-1
+	inline void					CalculateSpringPropertiesWithDamping(float inDeltaTime, float inInvEffectiveMass, float inBias, float inDamping, float &outEffectiveMass)
+	{
+		if (inDamping > 0.0f)
+		{
+			// Convert acceleration-mode damping to force-space damping: c = m_eff * damping
+			float c = inDamping / inInvEffectiveMass;
+			CalculateSpringPropertiesHelper(inDeltaTime, inInvEffectiveMass, inBias, 0.0f, 0.0f, c, outEffectiveMass);
+		}
+		else
+		{
+			outEffectiveMass = 1.0f / inInvEffectiveMass;
+			CalculateSpringPropertiesWithBias(inBias);
+		}
+	}
+
 	/// Returns if this spring is active
 	inline bool					IsActive() const
 	{

@@ -144,6 +144,24 @@ public:
 			mSpringPart.CalculateSpringPropertiesWithStiffnessAndDamping(inDeltaTime, inv_effective_mass, inBias, inC, inSpringSettings.mStiffness, inSpringSettings.mDamping, mEffectiveMass);
 	}
 
+	/// Calculate properties used during the functions below for a mass-normalized damping-only drive: a = -inDamping * w_err
+	/// See SpringPart::CalculateSpringPropertiesWithDamping.
+	/// @param inDeltaTime Time step
+	/// @param inBody1 The first body that this constraint is attached to
+	/// @param inBody2 The second body that this constraint is attached to
+	/// @param inWorldSpaceAxis The axis of rotation along which the constraint acts (normalized)
+	/// @param inBias Bias term (b) for the constraint impulse: lambda = J v + b
+	/// @param inDamping Damping coefficient in 1/s
+	inline void					CalculateConstraintPropertiesWithDamping(float inDeltaTime, const Body &inBody1, const Body &inBody2, Vec3Arg inWorldSpaceAxis, float inBias, float inDamping)
+	{
+		float inv_effective_mass = CalculateInverseEffectiveMass(inBody1, inBody2, inWorldSpaceAxis);
+
+		if (inv_effective_mass == 0.0f)
+			Deactivate();
+		else
+			mSpringPart.CalculateSpringPropertiesWithDamping(inDeltaTime, inv_effective_mass, inBias, inDamping, mEffectiveMass);
+	}
+
 	/// Deactivate this constraint
 	inline void					Deactivate()
 	{
