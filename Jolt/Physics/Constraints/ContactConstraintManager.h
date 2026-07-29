@@ -158,6 +158,36 @@ public:
 	/// Uses the read collision cache to determine if 2 bodies are in contact.
 	bool						WereBodiesInContact(const BodyID &inBody1ID, const BodyID &inBody2ID) const;
 
+	/// The impulse that the solver applied at a single contact point.
+	struct AppliedContactPoint
+	{
+		Vec3					mPosition1;						///< Contact position in body 1's center of mass space
+		Vec3					mPosition2;						///< Contact position in body 2's center of mass space
+		float					mNormalImpulse = 0;				///< Impulse applied along the contact normal (kg m / s). A contact can only push, so this is never negative.
+	};
+
+	/// The impulses that the solver applied to one contact manifold.
+	/// The tangents that the friction impulses act along follow from the normal, see ContactConstraintBase::GetTangents.
+	/// @see ContactConstraintManager::GetAppliedContactImpulses
+	struct AppliedContactImpulses
+	{
+		Vec3					mNormal;						///< Contact normal in body 2's center of mass space
+		float					mFrictionImpulse1 = 0;			///< Impulse along the first tangent (kg m / s)
+		float					mFrictionImpulse2 = 0;			///< Impulse along the second tangent (kg m / s)
+		float					mAngularFrictionImpulse = 0;	///< Angular impulse around the contact normal (kg m^2 / s)
+		StaticArray<AppliedContactPoint, MaxContactPoints> mPoints; ///< One entry per contact point of the manifold
+	};
+
+	/// Get the impulses that the solver applied to a contact manifold. Since contacts are only detected between active bodies,
+	/// at least one of the bodies must be active.
+	/// Unlike EstimateCollisionResponse, which predicts the impulses before solving and only considers the 2 bodies involved, these
+	/// are the impulses that were actually applied and so they account for every other contact and constraint in the simulation.
+	/// The impulses are reported per contact point, so that a caller can weigh the points by the load each one carries.
+	/// Uses the read collision cache: called from outside PhysicsSystem::Update these are the impulses of its last collision step,
+	/// called from a ContactListener callback they are the impulses of the previous collision step.
+	/// @return Whether the sub shapes were in contact. outImpulses is left alone when they were not.
+	bool						GetAppliedContactImpulses(const SubShapeIDPair &inSubShapePair, AppliedContactImpulses &outImpulses) const;
+
 	/// Get the number of contact constraints that were found
 	uint32						GetNumConstraints() const											{ return min<uint32>(uint32(mNumConstraintsAndNextConstraintOffset.load(memory_order_relaxed)), mMaxConstraints); }
 

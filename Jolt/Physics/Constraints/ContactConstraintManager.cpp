@@ -1542,6 +1542,32 @@ bool ContactConstraintManager::WereBodiesInContact(const BodyID &inBody1ID, cons
 	return kv != nullptr && kv->GetValue().mFirstCachedManifold != ManifoldMap::cInvalidHandle;
 }
 
+bool ContactConstraintManager::GetAppliedContactImpulses(const SubShapeIDPair &inSubShapePair, AppliedContactImpulses &outImpulses) const
+{
+	// The impulses that the solver applied were written back into the cache to warm start the next step, see StoreAppliedImpulses.
+	// While stepping, mReadCache stays pointed at the cache the step started with even after the write index swaps.
+	const ManifoldCache &read_cache = mReadCache != nullptr? *mReadCache : mCache[mCacheWriteIdx ^ 1];
+	const MKeyValue *kv = read_cache.Find(inSubShapePair, inSubShapePair.GetHash());
+	if (kv == nullptr)
+		return false;
+
+	const CachedManifold &manifold = kv->GetValue();
+	outImpulses.mNormal = Vec3::sLoadFloat3Unsafe(manifold.mContactNormal);
+	outImpulses.mFrictionImpulse1 = manifold.mFrictionLambda[0];
+	outImpulses.mFrictionImpulse2 = manifold.mFrictionLambda[1];
+	outImpulses.mAngularFrictionImpulse = manifold.mAngularFrictionLambda;
+	outImpulses.mPoints.resize(manifold.mNumContactPoints);
+	for (uint32 i = 0; i < manifold.mNumContactPoints; ++i)
+	{
+		const CachedContactPoint &cp = manifold.mContactPoints[i];
+		AppliedContactPoint &out = outImpulses.mPoints[i];
+		out.mPosition1 = Vec3::sLoadFloat3Unsafe(cp.mPosition1);
+		out.mPosition2 = Vec3::sLoadFloat3Unsafe(cp.mPosition2);
+		out.mNormalImpulse = cp.mNonPenetrationLambda;
+	}
+	return true;
+}
+
 template <EMotionType Type1, EMotionType Type2>
 void ContactConstraintManager::sGetVelocities(const MotionProperties *inMotionProperties1, const MotionProperties *inMotionProperties2, Vec3 &outLinearVelocity1, Vec3 &outAngularVelocity1, Vec3 &outLinearVelocity2, Vec3 &outAngularVelocity2)
 {

@@ -722,4 +722,70 @@ TEST_SUITE("ContactListenerTests")
 		CHECK(listener.Contains(EType::Validate, floor.GetID(), body2.GetID()));
 		CHECK(listener.Contains(EType::Add, floor.GetID(), body2.GetID()));
 	}
+
+	// A box resting on the floor needs an impulse of its weight times the step to stay there, so the reported impulse is checked against that
+	// Queries the impulses of a persisting contact from the callback that reports it, which is what a sound or haptics system does
+	class ImpulseQueryListener : public ContactListener
+	{
+	public:
+		const PhysicsSystem *					mSystem = nullptr;
+		bool									mFound = false;
+		ContactConstraintManager::AppliedContactImpulses mImpulses;
+
+		virtual void	OnContactPersisted(const Body &inBody1, const Body &inBody2, const ContactManifold &inManifold, ContactSettings &) override
+		{
+			mFound = mSystem->GetAppliedContactImpulses(SubShapeIDPair(inBody1.GetID(), inManifold.mSubShapeID1, inBody2.GetID(), inManifold.mSubShapeID2), mImpulses);
+		}
+	};
+
+	// A box resting on the floor needs an impulse of its weight times the step to stay there, so the reported impulses are checked against that
+	TEST_CASE("TestGetAppliedContactImpulses")
+	{
+		PhysicsTestContext c;
+
+		const Vec3 cHalfExtent = Vec3::sOne();
+		c.CreateFloor();
+		Body &body = c.CreateBox(RVec3(0, cHalfExtent.GetY(), 0), Quat::sIdentity(), EMotionType::Dynamic, EMotionQuality::Discrete, Layers::MOVING, cHalfExtent);
+
+		// Contacts are only detected between active bodies, so the box has to stay awake to keep reporting them
+		body.SetAllowSleeping(false);
+
+		ImpulseQueryListener listener;
+		listener.mSystem = c.GetSystem();
+		c.GetSystem()->SetContactListener(&listener);
+
+		// Let the box settle so that the solver has warm started and carries the full load
+		c.Simulate(1.0f);
+
+		CHECK(listener.mFound);
+		const ContactConstraintManager::AppliedContactImpulses &impulses = listener.mImpulses;
+		CHECK(impulses.mPoints.size() > 0);
+
+		// The box is held up by the sum over the manifold's points
+		float normal_impulse = 0;
+		for (const ContactConstraintManager::AppliedContactPoint &p : impulses.mPoints)
+			normal_impulse += p.mNormalImpulse;
+		const float mass = 1.0f / body.GetMotionProperties()->GetInverseMass();
+		const float expected_impulse = mass * cGravity.Length() * c.GetDeltaTime();
+		CHECK_APPROX_EQUAL(normal_impulse, expected_impulse, 0.05f * expected_impulse);
+
+		// A box resting flat spreads its load evenly, so the point where a single resultant would act sits under its middle
+		Vec3 center_of_pressure = Vec3::sZero();
+		for (const ContactConstraintManager::AppliedContactPoint &p : impulses.mPoints)
+			center_of_pressure += p.mPosition1 * p.mNormalImpulse;
+		center_of_pressure /= normal_impulse;
+		CHECK_APPROX_EQUAL(center_of_pressure.GetX(), 0.0f, 1.0e-2f);
+		CHECK_APPROX_EQUAL(center_of_pressure.GetZ(), 0.0f, 1.0e-2f);
+
+		// Nothing pushes the box sideways
+		CHECK(abs(impulses.mFrictionImpulse1) < 1.0e-3f * expected_impulse);
+		CHECK(abs(impulses.mFrictionImpulse2) < 1.0e-3f * expected_impulse);
+
+		// Sub shapes that never touched report nothing and leave the output alone
+		Body &far_away = c.CreateBox(RVec3(0, 100.0f, 0), Quat::sIdentity(), EMotionType::Dynamic, EMotionQuality::Discrete, Layers::MOVING, cHalfExtent);
+		ContactConstraintManager::AppliedContactImpulses untouched;
+		untouched.mFrictionImpulse1 = 12345.0f;
+		CHECK_FALSE(c.GetSystem()->GetAppliedContactImpulses(SubShapeIDPair(body.GetID(), SubShapeID(), far_away.GetID(), SubShapeID()), untouched));
+		CHECK(untouched.mFrictionImpulse1 == 12345.0f);
+	}
 }
